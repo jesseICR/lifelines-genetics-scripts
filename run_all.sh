@@ -5,8 +5,9 @@
 #     bash run_all.sh
 #
 # Steps:
-#   1. Downloads snp.info, the dense rsid list, the public-statgen PCA
-#      reference, and the EUR-balanced PCA reference (login node, idempotent).
+#   1. Downloads snp.info, the dense rsid list, and the public-statgen
+#      PCA reference (login node, idempotent). The EUR-balanced PCA
+#      reference and centroids_pc6.tsv are shipped with the repo.
 #   2. Submits SLURM jobs chained with --dependency=afterok:
 #          run_extract.sbatch -> run_relabel.sbatch -> run_dense.sbatch -> run_project.sbatch
 #                                                                       +-> run_eur_project.sbatch  (parallel)
@@ -31,7 +32,6 @@ mkdir -p logs
 bash 01_download_snp_info.sh
 bash 04_download_dense_rsids.sh
 bash 06_download_pca_ref.sh
-bash 11_download_eur_pca_ref.sh
 
 JOB1=$(sbatch --parsable run_extract.sbatch)
 [[ -n "$JOB1" ]] || { echo "ERROR: failed to submit run_extract.sbatch" >&2; exit 1; }

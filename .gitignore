@@ -10,9 +10,9 @@ snp.info
 rsids_dense_chr1_22.txt
 ukb_snp_qc.txt
 ukb_relatedness_rsids.txt
-eur_pca_balanced.*
 pca_ref/
 pca_ref_eur/
+eur_pca_snps.txt
 
 # Pipeline outputs
 gsa/

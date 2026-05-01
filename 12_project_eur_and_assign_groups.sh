@@ -13,13 +13,13 @@
 # Run via SLURM:
 #     sbatch run_eur_project.sbatch
 #
-# Inputs (from previous steps):
-#   pca_ref_eur/eur_pca_balanced.eigenvec.allele  (from 11)
-#   pca_ref_eur/eur_pca_balanced.acount           (from 11)
-#   ./centroids_pc6.tsv                           (shipped with repo)
-#   gsa/dense.{pgen,pvar,psam}                    (from 05)
-#   affymetrix/dense.{pgen,pvar,psam}             (from 05)
-#   ./assign_eur_groups.py                        (shipped with repo)
+# Inputs:
+#   ./eur_pca_balanced.eigenvec.allele  (shipped with repo)
+#   ./eur_pca_balanced.acount           (shipped with repo)
+#   ./centroids_pc6.tsv                 (shipped with repo)
+#   ./assign_eur_groups.py              (shipped with repo)
+#   gsa/dense.{pgen,pvar,psam}          (from 05)
+#   affymetrix/dense.{pgen,pvar,psam}   (from 05)
 #
 # Outputs:
 #   gsa/dense_eur_projected.sscore
@@ -33,11 +33,10 @@
 set -euo pipefail
 trap 'echo "[12] ERROR on line $LINENO (last command: $BASH_COMMAND)" >&2' ERR
 
-REF_DIR=pca_ref_eur
-ALLELE_FILE="$REF_DIR/eur_pca_balanced.eigenvec.allele"
-COUNTS_FILE="$REF_DIR/eur_pca_balanced.acount"
-CENTROIDS_TSV=centroids_pc6.tsv      # shipped with repo (group_label + center_PC1..PC6, giab excluded)
-PCA_SNPS="$REF_DIR/eur_pca_snps.txt"
+ALLELE_FILE=eur_pca_balanced.eigenvec.allele   # shipped with repo
+COUNTS_FILE=eur_pca_balanced.acount            # shipped with repo
+CENTROIDS_TSV=centroids_pc6.tsv                # shipped with repo
+PCA_SNPS=eur_pca_snps.txt                      # generated at runtime (gitignored)
 N_PCS_DIST=6      # number of PCs used for distance to centroids
 N_PCS_PROJ=20     # number of PCs preserved in .sscore output
 TOP_K=10
@@ -56,9 +55,9 @@ echo "=== Pre-flight ==="
 echo "  hostname:    $(hostname)"
 echo "  job:         ${SLURM_JOB_ID:-<not under SLURM>}"
 echo "  cwd:         $(pwd)"
-[[ -s "$ALLELE_FILE"   ]] || { echo "ERROR: $ALLELE_FILE missing — run 11"   >&2; exit 1; }
-[[ -s "$COUNTS_FILE"   ]] || { echo "ERROR: $COUNTS_FILE missing — run 11"   >&2; exit 1; }
-[[ -s "$CENTROIDS_TSV" ]] || { echo "ERROR: $CENTROIDS_TSV missing in cwd (ship with repo)" >&2; exit 1; }
+[[ -s "$ALLELE_FILE"   ]] || { echo "ERROR: $ALLELE_FILE missing in cwd (shipped with repo)"   >&2; exit 1; }
+[[ -s "$COUNTS_FILE"   ]] || { echo "ERROR: $COUNTS_FILE missing in cwd (shipped with repo)"   >&2; exit 1; }
+[[ -s "$CENTROIDS_TSV" ]] || { echo "ERROR: $CENTROIDS_TSV missing in cwd (shipped with repo)" >&2; exit 1; }
 [[ -f assign_eur_groups.py ]] || { echo "ERROR: assign_eur_groups.py missing in cwd" >&2; exit 1; }
 command -v plink2  >/dev/null 2>&1 || { echo "ERROR: plink2 not on PATH"  >&2; exit 1; }
 command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 not on PATH" >&2; exit 1; }
