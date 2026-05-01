@@ -8,13 +8,21 @@
 #   1. Downloads snp.info, the dense rsid list, and the public-statgen
 #      PCA reference (login node, idempotent). The EUR-balanced PCA
 #      reference and centroids_pc6.tsv are shipped with the repo.
-#   2. Submits SLURM jobs chained with --dependency=afterok:
-#          run_extract.sbatch -> run_relabel.sbatch -> run_dense.sbatch -> run_project.sbatch
-#                                                                       +-> run_eur_project.sbatch  (parallel)
-#                                                  +-> run_freq.sbatch  (parallel branch off relabel)
+#   2. For each compute step, checks whether its final outputs already
+#      exist. If yes, skips submitting that sbatch job entirely. If no,
+#      submits it with --dependency=afterok on the most recent ancestor
+#      that actually ran. So a re-run of run_all.sh after success
+#      submits zero jobs and exits in seconds.
 #
-# Note: 09 + 10 (kinship) are NOT in this pipeline. Run them separately
-# after this finishes:
+# DAG:
+#   01,04,06 (login)
+#         │
+#         ▼
+#   extract -> relabel ─┬─► dense ─┬─► project
+#                       │          └─► eur_project
+#                       └─► freq
+#
+# Note: 09 + 10 (kinship) are NOT in this pipeline. Run separately:
 #       bash 09_download_ukb_qc.sh
 #       sbatch run_kinship.sbatch
 #
@@ -33,35 +41,67 @@ bash 01_download_snp_info.sh
 bash 04_download_dense_rsids.sh
 bash 06_download_pca_ref.sh
 
-JOB1=$(sbatch --parsable run_extract.sbatch)
-[[ -n "$JOB1" ]] || { echo "ERROR: failed to submit run_extract.sbatch" >&2; exit 1; }
-echo "Submitted extract job:      $JOB1"
+# Submit $script with optional --dependency, unless the step's final
+# outputs (checked by $skip_check) already exist. Echoes the job id (or
+# empty string if skipped) so the caller can chain dependencies.
+maybe_submit() {
+    local label=$1
+    local script=$2
+    local skip_check=$3
+    local dep_id=$4
 
-JOB2=$(sbatch --parsable --dependency=afterok:"$JOB1" run_relabel.sbatch)
-[[ -n "$JOB2" ]] || { echo "ERROR: failed to submit run_relabel.sbatch" >&2; exit 1; }
-echo "Submitted relabel job:      $JOB2 (after $JOB1)"
+    if eval "$skip_check"; then
+        echo "  [skip] $label: outputs already present" >&2
+        echo ""
+        return 0
+    fi
 
-JOB3=$(sbatch --parsable --dependency=afterok:"$JOB2" run_dense.sbatch)
-[[ -n "$JOB3" ]] || { echo "ERROR: failed to submit run_dense.sbatch" >&2; exit 1; }
-echo "Submitted dense job:        $JOB3 (after $JOB2)"
+    local args=()
+    [[ -n "$dep_id" ]] && args+=(--dependency=afterok:"$dep_id")
 
-JOB4=$(sbatch --parsable --dependency=afterok:"$JOB3" run_project.sbatch)
-[[ -n "$JOB4" ]] || { echo "ERROR: failed to submit run_project.sbatch" >&2; exit 1; }
-echo "Submitted project job:      $JOB4 (after $JOB3)"
+    local jobid
+    jobid=$(sbatch --parsable "${args[@]}" "$script")
+    [[ -n "$jobid" ]] || { echo "ERROR: failed to submit $script" >&2; exit 1; }
 
-JOB5=$(sbatch --parsable --dependency=afterok:"$JOB2" run_freq.sbatch)
-[[ -n "$JOB5" ]] || { echo "ERROR: failed to submit run_freq.sbatch" >&2; exit 1; }
-echo "Submitted freq job:         $JOB5 (after $JOB2, parallel to dense/project)"
+    if [[ -n "$dep_id" ]]; then
+        echo "  Submitted $label: $jobid (after $dep_id)" >&2
+    else
+        echo "  Submitted $label: $jobid" >&2
+    fi
+    echo "$jobid"
+}
 
-JOB6=$(sbatch --parsable --dependency=afterok:"$JOB3" run_eur_project.sbatch)
-[[ -n "$JOB6" ]] || { echo "ERROR: failed to submit run_eur_project.sbatch" >&2; exit 1; }
-echo "Submitted eur-project job:  $JOB6 (after $JOB3, parallel to project)"
+# Each skip_check tests the final output(s) of the step.
+JOB1=$(maybe_submit "extract"     run_extract.sbatch \
+    '[[ -f gsa/merged.pgen           && -f affymetrix/merged.pgen           ]]' "")
+
+JOB2=$(maybe_submit "relabel"     run_relabel.sbatch \
+    '[[ -f gsa/merged_rsid.pgen      && -f affymetrix/merged_rsid.pgen      ]]' "$JOB1")
+
+JOB3=$(maybe_submit "dense"       run_dense.sbatch \
+    '[[ -f gsa/dense.pgen            && -f affymetrix/dense.pgen            ]]' "$JOB2")
+
+JOB4=$(maybe_submit "project"     run_project.sbatch \
+    '[[ -f gsa/dense_assigned_superpop.csv && -f affymetrix/dense_assigned_superpop.csv ]]' "$JOB3")
+
+JOB5=$(maybe_submit "freq"        run_freq.sbatch \
+    '[[ -f gsa/freq_diff_ge_0.2.csv  && -f affymetrix/freq_diff_ge_0.2.csv  ]]' "$JOB2")
+
+JOB6=$(maybe_submit "eur_project" run_eur_project.sbatch \
+    '[[ -f gsa/dense_eur_top10_groups.csv && -f affymetrix/dense_eur_top10_groups.csv ]]' "$JOB3")
+
+if [[ -z "${JOB1}${JOB2}${JOB3}${JOB4}${JOB5}${JOB6}" ]]; then
+    echo
+    echo "All outputs already present. Nothing submitted."
+    exit 0
+fi
 
 echo
 echo "Monitor:  squeue -u \$USER"
-echo "Logs:     logs/extract.${JOB1}.log"
-echo "          logs/relabel.${JOB2}.log"
-echo "          logs/dense.${JOB3}.log"
-echo "          logs/project.${JOB4}.log"
-echo "          logs/freq.${JOB5}.log"
-echo "          logs/eur_project.${JOB6}.log"
+echo "Logs:"
+[[ -n "$JOB1" ]] && echo "  logs/extract.${JOB1}.log"
+[[ -n "$JOB2" ]] && echo "  logs/relabel.${JOB2}.log"
+[[ -n "$JOB3" ]] && echo "  logs/dense.${JOB3}.log"
+[[ -n "$JOB4" ]] && echo "  logs/project.${JOB4}.log"
+[[ -n "$JOB5" ]] && echo "  logs/freq.${JOB5}.log"
+[[ -n "$JOB6" ]] && echo "  logs/eur_project.${JOB6}.log"
