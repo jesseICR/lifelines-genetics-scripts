@@ -22,9 +22,9 @@
 #                       │          └─► eur_project
 #                       └─► freq
 #
-# Note: 09 + 10 (kinship) are NOT in this pipeline. Run separately:
-#       bash 09_download_ukb_qc.sh
-#       sbatch run_kinship.sbatch
+# Note: kinship is a SEPARATE pipeline (run_kinship.sh) — not in this DAG.
+# After this finishes:
+#       bash run_kinship.sh
 #
 # Recommended smoke test before committing to the full pipeline:
 #     bash 01_download_snp_info.sh

@@ -21,6 +21,8 @@ logs/
 extract_ids.txt
 rsid_map.txt
 rename_ids.txt
+merged_kinship.*
+*.missnp
 
 # Common cruft
 *.log
