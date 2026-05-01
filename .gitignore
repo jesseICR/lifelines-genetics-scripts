@@ -1,0 +1,30 @@
+# Local working files (not for the cluster)
+CLAUDE.md
+ssh_output.txt
+lifelines_email.txt
+*.pdf
+public-statgen/
+
+# Inputs that get downloaded on the cluster
+snp.info
+rsids_dense_chr1_22.txt
+ukb_snp_qc.txt
+ukb_relatedness_rsids.txt
+eur_pca_balanced.*
+pca_ref/
+pca_ref_eur/
+
+# Pipeline outputs
+gsa/
+affymetrix/
+logs/
+extract_ids.txt
+rsid_map.txt
+rename_ids.txt
+
+# Common cruft
+*.log
+*.tmp
+.DS_Store
+__pycache__/
+*.pyc

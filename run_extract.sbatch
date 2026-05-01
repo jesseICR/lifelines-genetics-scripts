@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH --job-name=ll_extract
+#SBATCH --output=logs/extract.%j.log
+#SBATCH --error=logs/extract.%j.log
+#SBATCH --time=24:00:00
+#SBATCH --mem=16G
+#SBATCH --cpus-per-task=4
+#
+# Full run:    sbatch run_extract.sbatch
+# Smoke test:  sbatch run_extract.sbatch 22
+# Status:      squeue -u $USER
+# Log:         logs/extract.<jobid>.log
+
+set -euo pipefail
+mkdir -p logs
+bash 02_extract_plink.sh "$@"
